@@ -39,6 +39,8 @@ class CodeExecutionRequest(BaseModel):
     timeout: int = 4
 
 class UserProgressUpdate(BaseModel):
+    username: str | None = None
+    unlock_all_stages: bool | None = None
     xp: int | None = None
     streak: int | None = None
     hearts: int | None = None
