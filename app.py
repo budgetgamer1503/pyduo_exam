@@ -206,7 +206,14 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(BASE_DIR / "index.html")
+
+@app.get("/{filename:path}")
+def serve_root_files(filename: str):
+    file_path = BASE_DIR / filename
+    if file_path.is_file():
+        return FileResponse(file_path)
+    return FileResponse(BASE_DIR / "index.html")
 
 if __name__ == "__main__":
     import uvicorn

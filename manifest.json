@@ -1,0 +1,17 @@
+{
+  "name": "PyDuo Exam Quest - Class XII COMS",
+  "short_name": "PyDuo",
+  "description": "Gamified Class XII Computer Science Learning App with Indian AI Voice",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#58cc02",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
