@@ -16,7 +16,7 @@
     "1-1",
     "1-2"
   ],
-  "voice_mode": true,
+  "voice_mode": false,
   "sound_enabled": true,
   "speech_rate": 1.0,
   "speech_pitch": 1.0,

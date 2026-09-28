@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+audio_cache/
+.venv/
+test_voice.mp3
+user_progress.json
+.DS_Store
+Thumbs.db
