@@ -1,28 +1,18 @@
 {
-  "xp": 150,
-  "streak": 3,
+  "xp": 0,
+  "streak": 1,
   "last_active": "2026-09-28",
   "hearts": 5,
   "max_hearts": 5,
-  "gems": 260,
-  "current_stage": 2,
-  "completed_stages": [
-    1
-  ],
-  "stage_stars": {
-    "1": 2
-  },
-  "completed_lessons": [
-    "1-1",
-    "1-2"
-  ],
+  "gems": 100,
+  "current_stage": 1,
+  "completed_stages": [],
+  "stage_stars": {},
+  "completed_lessons": [],
   "voice_mode": false,
   "sound_enabled": true,
   "speech_rate": 1.0,
   "speech_pitch": 1.0,
-  "unlocked_badges": [
-    "first_code",
-    "streak_starter"
-  ],
+  "unlocked_badges": [],
   "notes_bookmarked": []
 }
