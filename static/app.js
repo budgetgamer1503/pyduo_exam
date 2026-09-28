@@ -56,6 +56,16 @@ class PyDuoApp {
 
     // Start auto-heart refill timer check
     this.startHeartRegenTimer();
+
+    // Re-render journey path on window resize / orientation change
+    window.addEventListener("resize", () => {
+      if (this.currentView === "journey") {
+        clearTimeout(this._resizeDebounce);
+        this._resizeDebounce = setTimeout(() => {
+          this.renderCurrentView();
+        }, 200);
+      }
+    });
   }
 
   async fetchServerProgress() {
@@ -232,6 +242,8 @@ class PyDuoApp {
 
   switchView(viewName) {
     this.currentView = viewName;
+    document.body.classList.toggle("in-lesson", viewName === "lesson");
+
     document.querySelectorAll(".nav-item").forEach(item => {
       item.classList.toggle("active", item.dataset.view === viewName);
     });
@@ -313,9 +325,10 @@ class PyDuoApp {
         const isLocked = !isCompleted && !isCurrent && stage.id > (Math.max(...this.state.completed_stages, 0) + 1);
         const stars = this.state.stage_stars[stage.id.toString()] || 0;
 
-        // Alternating zigzag pattern
+        // Alternating zigzag pattern (damped on mobile viewports to prevent overflow)
+        const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
         const offsets = [0, 45, 90, 45, 0, -45, -90, -45];
-        const offsetLeft = offsets[idx % offsets.length];
+        const offsetLeft = isMobile ? Math.round(offsets[idx % offsets.length] * 0.35) : offsets[idx % offsets.length];
 
         html += `
           <div class="stage-node-container" style="transform: translateX(${offsetLeft}px);">
@@ -1826,7 +1839,7 @@ finally:
         <div class="modal-body qr-modal-body">
           <p>Open PyDuo Exam Quest directly on your phone's browser!</p>
           <div class="qr-preview-box">
-            <img src="/static/mobile_qr.svg" alt="Mobile QR Code" />
+            <img src="./mobile_qr.svg" onerror="this.src='/static/mobile_qr.svg'" alt="Mobile QR Code" />
           </div>
           <div class="copy-url-row">
             <input type="text" readonly value="${mobileUrl}" class="duo-input" id="mobile-url-input" />
