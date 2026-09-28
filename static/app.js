@@ -6,13 +6,15 @@
 class PyDuoApp {
   constructor() {
     this.state = {
+      username: localStorage.getItem("pyduo_username") || "",
+      unlock_all_stages: localStorage.getItem("pyduo_unlock_all") === "true",
       xp: 120,
       streak: 3,
       hearts: 5,
       max_hearts: 5,
       gems: 250,
       current_stage: 1,
-      completed_stages: [1],
+      completed_stages: [1, 11], // Python Stage 1 & E-Commerce Stage 11 accessible
       stage_stars: { "1": 3 },
       completed_lessons: ["1-1", "1-2"],
       voice_mode: true,
@@ -42,6 +44,11 @@ class PyDuoApp {
     this.init();
   }
 
+  isLocalServer() {
+    const host = window.location.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host.startsWith("192.168.") || host.startsWith("10.");
+  }
+
   async init() {
     this.initTheme();
     await this.fetchServerProgress();
@@ -50,9 +57,16 @@ class PyDuoApp {
     this.updateStatsBar();
     this.renderCurrentView();
 
+    // Ask for Student Name if first time visiting
+    if (!this.state.username) {
+      setTimeout(() => {
+        this.openWelcomeLoginModal();
+      }, 500);
+    }
+
     // Initialize global mascot
     window.mascot = new PyMimiMascot("global-mascot-container");
-    window.mascot.setState("idle", "Ready to ace Class XII Computer Science? Let's go!");
+    window.mascot.setState("idle", `Ready to ace Class XII Computer Science${this.state.username ? ', ' + this.state.username : ''}? Let's go!`);
 
     // Start auto-heart refill timer check
     this.startHeartRegenTimer();
@@ -78,36 +92,57 @@ class PyDuoApp {
       } catch (err) {}
     }
 
-    // 2. Sync with backend API if available
-    try {
-      const res = await fetch("/api/progress");
-      if (res.ok) {
-        const data = await res.json();
-        this.state = { ...this.state, ...data };
-        localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+    const savedName = localStorage.getItem("pyduo_username");
+    if (savedName) this.state.username = savedName;
+
+    const savedUnlock = localStorage.getItem("pyduo_unlock_all");
+    if (savedUnlock !== null) this.state.unlock_all_stages = (savedUnlock === "true");
+
+    // 2. Sync with backend API only if on local python server
+    if (this.isLocalServer()) {
+      try {
+        const res = await fetch("/api/progress");
+        if (res.ok) {
+          const data = await res.json();
+          this.state = { ...this.state, ...data };
+          localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+        }
+      } catch (e) {
+        // Backend offline
       }
-    } catch (e) {
-      // Running on GitHub Pages or offline - perfectly fine!
     }
   }
 
   async saveProgress() {
-    // Always persist to localStorage for GitHub Pages
-    localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
-
-    // Also persist to backend if running locally
+    // Always persist to localStorage for phone browser & GitHub Pages
     try {
-      await fetch("/api/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.state)
-      });
+      localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+      if (this.state.username) {
+        localStorage.setItem("pyduo_username", this.state.username);
+        const userKey = `pyduo_user_${this.state.username.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        localStorage.setItem(userKey, JSON.stringify(this.state));
+      }
+      localStorage.setItem("pyduo_unlock_all", this.state.unlock_all_stages ? "true" : "false");
     } catch (e) {
-      // Backend not running (GitHub Pages mode)
+      console.warn("Storage warning:", e);
+    }
+
+    // Also persist to backend if running on local server
+    if (this.isLocalServer()) {
+      try {
+        await fetch("/api/progress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.state)
+        });
+      } catch (e) {
+        // Backend offline
+      }
     }
   }
 
   async fetchNetworkInfo() {
+    if (!this.isLocalServer()) return;
     try {
       const res = await fetch("/api/network-info");
       if (res.ok) {
@@ -194,6 +229,16 @@ class PyDuoApp {
     if (headerThemeBtn) {
       headerThemeBtn.addEventListener("click", () => this.toggleTheme());
     }
+    // Profile Data Hub triggers
+    const headerProfileBtn = document.getElementById("header-profile-btn");
+    if (headerProfileBtn) {
+      headerProfileBtn.addEventListener("click", () => this.openProfileDataHubModal());
+    }
+
+    const sidebarProfileBtn = document.getElementById("sidebar-profile-btn");
+    if (sidebarProfileBtn) {
+      sidebarProfileBtn.addEventListener("click", () => this.openProfileDataHubModal());
+    }
   }
 
   initTheme() {
@@ -233,11 +278,17 @@ class PyDuoApp {
     const gemEl = document.getElementById("stat-gems");
     const heartEl = document.getElementById("stat-hearts");
     const xpEl = document.getElementById("stat-xp");
+    const headerNameEl = document.getElementById("header-user-name");
+    const sidebarNameEl = document.getElementById("sidebar-user-name");
+
+    const displayName = this.state.username || "Login";
 
     if (streakEl) streakEl.innerText = this.state.streak;
     if (gemEl) gemEl.innerText = this.state.gems;
     if (heartEl) heartEl.innerText = `${this.state.hearts}/${this.state.max_hearts}`;
     if (xpEl) xpEl.innerText = `${this.state.xp} XP`;
+    if (headerNameEl) headerNameEl.innerText = displayName;
+    if (sidebarNameEl) sidebarNameEl.innerText = `${displayName}'s Profile`;
   }
 
   switchView(viewName) {
@@ -300,6 +351,11 @@ class PyDuoApp {
           <div class="banner-badge">CLASS XII COMPUTER SCIENCE • SEMESTER III</div>
           <h2>Interactive Exam Quest Roadmap</h2>
           <p>Master all 35 Marks: Python Programming (25M) & E-Commerce (10M) with PyMimi!</p>
+          <div class="roadmap-quick-actions">
+            <button id="toggle-unlock-stages-btn" class="quick-unlock-pill ${this.state.unlock_all_stages ? 'active' : ''}">
+              ${this.state.unlock_all_stages ? '🔓 Free Exam Practice (All 15 Topics Open)' : '🔒 Unlock All 15 Topics for Revision'}
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -322,7 +378,13 @@ class PyDuoApp {
       unit.stages.forEach((stage, idx) => {
         const isCompleted = this.state.completed_stages.includes(stage.id);
         const isCurrent = this.state.current_stage === stage.id;
-        const isLocked = !isCompleted && !isCurrent && stage.id > (Math.max(...this.state.completed_stages, 0) + 1);
+        // Stage 1 is open. Stage 11 (Unit 2 start) is open. Unlock all toggle unlocks everything.
+        const isLocked = !this.state.unlock_all_stages &&
+                         !isCompleted &&
+                         !isCurrent &&
+                         stage.id !== 1 &&
+                         stage.id !== 11 &&
+                         stage.id > (Math.max(...this.state.completed_stages, 0) + 1);
         const stars = this.state.stage_stars[stage.id.toString()] || 0;
 
         // Alternating zigzag pattern (damped on mobile viewports to prevent overflow)
@@ -378,13 +440,24 @@ class PyDuoApp {
       node.addEventListener("click", () => {
         if (node.classList.contains("locked")) {
           window.soundEngine.playWrong();
-          alert("Complete earlier topics first to unlock this quest!");
+          alert("Topic locked! Complete earlier topics or tap 'Unlock All 15 Topics' at the top banner.");
           return;
         }
         const stageId = parseInt(node.dataset.stageId);
         this.openStageIntroModal(stageId);
       });
     });
+
+    const unlockBtn = wrapper.querySelector("#toggle-unlock-stages-btn");
+    if (unlockBtn) {
+      unlockBtn.addEventListener("click", () => {
+        this.state.unlock_all_stages = !this.state.unlock_all_stages;
+        localStorage.setItem("pyduo_unlock_all", this.state.unlock_all_stages ? "true" : "false");
+        window.soundEngine.playLevelUp();
+        this.saveProgress();
+        this.renderCurrentView();
+      });
+    }
 
     const examBtn = wrapper.querySelector("#trigger-board-exam");
     if (examBtn) {
@@ -1349,58 +1422,77 @@ finally:
       terminal.innerText = "⏳ Executing Python script...";
       runBtn.disabled = true;
 
-      // 1. Try local Python backend first
-      try {
-        const res = await fetch("/api/run-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: editor.value })
-        });
-        if (res.ok) {
-          const result = await res.json();
-          runBtn.disabled = false;
+      // 1. Try local Python backend first IF running on local server
+      if (this.isLocalServer()) {
+        try {
+          const res = await fetch("/api/run-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: editor.value })
+          });
+          if (res.ok) {
+            const result = await res.json();
+            runBtn.disabled = false;
 
-          let output = "";
-          if (result.stdout) output += result.stdout;
-          if (result.stderr) output += `\n❌ Error / Traceback:\n${result.stderr}`;
-          if (!result.stdout && !result.stderr) output = "Program completed with no terminal output.";
+            let output = "";
+            if (result.stdout) output += result.stdout;
+            if (result.stderr) output += `\n❌ Error / Traceback:\n${result.stderr}`;
+            if (!result.stdout && !result.stderr) output = "Program completed with no terminal output.";
 
-          terminal.innerText = output;
-          if (result.success) window.soundEngine.playCorrect();
-          else window.soundEngine.playWrong();
-          return;
+            terminal.innerText = output;
+            if (result.success) window.soundEngine.playCorrect();
+            else window.soundEngine.playWrong();
+            return;
+          }
+        } catch (backendErr) {
+          // Backend offline - fallback to Pyodide
         }
-      } catch (backendErr) {
-        // Backend offline or running statically on GitHub Pages!
       }
 
-      // 2. In-browser Pyodide WebAssembly execution (Zero backend needed for GitHub Pages!)
-      terminal.innerText = "⏳ Initializing in-browser Python engine (Pyodide for GitHub Pages)...";
+      // 2. In-browser Pyodide WebAssembly execution (For GitHub Pages & Mobile Web!)
+      terminal.innerText = "⏳ Initializing Pyodide Python Engine (WebAssembly)...";
       try {
         if (!window.pyodideInstance && window.loadPyodide) {
-          window.pyodideInstance = await window.loadPyodide();
+          terminal.innerText = "⏳ Downloading in-browser Python runtime (WebAssembly)...";
+          window.pyodideInstance = await window.loadPyodide({
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/"
+          });
         }
 
         if (window.pyodideInstance) {
-          let pyOutput = "";
-          let pyError = "";
+          terminal.innerText = "⏳ Executing Python code in browser...";
+          const pyCode = editor.value;
+          const runner = `
+import sys, io, traceback
+_out_stream = io.StringIO()
+_err_stream = io.StringIO()
+_orig_out = sys.stdout
+_orig_err = sys.stderr
+sys.stdout = _out_stream
+sys.stderr = _err_stream
+try:
+    exec(${JSON.stringify(pyCode)})
+except Exception as _e:
+    traceback.print_exc(file=_err_stream)
+finally:
+    sys.stdout = _orig_out
+    sys.stderr = _orig_err
 
-          window.pyodideInstance.setStdout({
-            batched: (msg) => { pyOutput += msg + "\n"; }
-          });
-          window.pyodideInstance.setStderr({
-            batched: (msg) => { pyError += msg + "\n"; }
-          });
+_captured_stdout = _out_stream.getvalue()
+_captured_stderr = _err_stream.getvalue()
+`;
+          await window.pyodideInstance.runPythonAsync(runner);
+          const pyStdout = window.pyodideInstance.globals.get("_captured_stdout") || "";
+          const pyStderr = window.pyodideInstance.globals.get("_captured_stderr") || "";
 
-          await window.pyodideInstance.runPythonAsync(editor.value);
           runBtn.disabled = false;
-
-          let finalOut = pyOutput;
-          if (pyError) finalOut += `\n❌ Python Traceback:\n${pyError}`;
+          let finalOut = pyStdout;
+          if (pyStderr) finalOut += (finalOut ? "\n" : "") + `❌ Python Traceback:\n${pyStderr}`;
           if (!finalOut.trim()) finalOut = "Program finished with no terminal output.";
 
           terminal.innerText = finalOut;
-          window.soundEngine.playCorrect();
+          if (pyStderr) window.soundEngine.playWrong();
+          else window.soundEngine.playCorrect();
           return;
         }
       } catch (pyErr) {
@@ -1411,7 +1503,7 @@ finally:
       }
 
       runBtn.disabled = false;
-      terminal.innerText = "Please ensure Pyodide or the local server is connected.";
+      terminal.innerText = "Could not initialize in-browser Python engine. Please check your internet connection.";
     };
 
     runBtn.addEventListener("click", execute);
@@ -1706,12 +1798,14 @@ finally:
           title: "Voice Speech Drill",
           xp: 25,
           mascotDialogue: "Speak your answers clearly into the microphone!",
+          explanation: "### 🎙️ Voice Speech Recall Drill\nSpeak programming keywords, tokens, and definitions clearly into the microphone to build instant board exam recall!",
           questions: voiceQuestions
         };
         this.lessonQuestions = [...voiceQuestions];
         this.currentQuestionIdx = 0;
         this.lessonXpEarned = 0;
         this.lessonMistakes = 0;
+        this.lessonMode = "quiz"; // Direct practice quiz mode
         this.switchView("lesson");
       }
     });
@@ -1728,12 +1822,14 @@ finally:
         title: "Bug Hunter Blitz",
         xp: 25,
         mascotDialogue: "Carefully analyze each line of code before answering!",
+        explanation: "### 🐞 Bug Hunting Blitz\nSpot subtle syntax errors, operator issues, and variable naming traps common in Class XII board exams.",
         questions: bugQuestions.slice(0, 5)
       };
       this.lessonQuestions = bugQuestions.slice(0, 5);
       this.currentQuestionIdx = 0;
       this.lessonXpEarned = 0;
       this.lessonMistakes = 0;
+      this.lessonMode = "quiz"; // Direct practice quiz mode
       this.switchView("lesson");
     });
   }
@@ -1902,6 +1998,259 @@ finally:
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       .replace(/\n\n/g, "<br><br>");
+  }
+
+  // ==========================================================================
+  // MODALS: WELCOME LOGIN (NAME ONLY) & PROFILE DATA HUB (BROWSER / GITHUB)
+  // ==========================================================================
+  openWelcomeLoginModal() {
+    const modal = document.createElement("div");
+    modal.className = "duo-modal-overlay";
+    modal.innerHTML = `
+      <div class="duo-modal-card bounce-in" style="max-width: 440px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #58cc02, #22c55e);">
+          <h2>👋 Welcome to PyDuo!</h2>
+        </div>
+        <div class="modal-body text-center">
+          <div style="font-size: 48px; margin-bottom: 8px;">🐍</div>
+          <h3>Class XII Computer Science (COMS)</h3>
+          <p style="color: var(--text-muted); font-size: 13.5px; margin: 8px 0 16px 0;">
+            Semester - III Board Exam Quest (35 Marks). Enter your name to track your streak, hearts, and score!
+          </p>
+          <div style="text-align: left; margin-bottom: 16px;">
+            <label style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">What is your Name?</label>
+            <input type="text" id="welcome-name-input" class="duo-input" placeholder="e.g. Rohan, Priya, Aman..." maxlength="30" autofocus style="margin-top: 6px; font-size: 16px;" />
+          </div>
+          <button id="welcome-submit-btn" class="duo-btn duo-btn-primary duo-btn-large">Start Learning 🚀</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector("#welcome-name-input");
+    const btn = modal.querySelector("#welcome-submit-btn");
+
+    const submit = () => {
+      const name = (input.value.trim() || "Scholar").slice(0, 30);
+      this.state.username = name;
+      localStorage.setItem("pyduo_username", name);
+      this.updateStatsBar();
+      this.saveProgress();
+      window.soundEngine.playLevelUp();
+      if (window.mascot) {
+        window.mascot.setState("happy", `Welcome ${name}! Let's score 35/35 in COMS!`);
+      }
+      modal.remove();
+    };
+
+    btn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+  }
+
+  openProfileDataHubModal() {
+    window.soundEngine.playClick();
+    const modal = document.createElement("div");
+    modal.className = "duo-modal-overlay";
+    const currentName = this.state.username || "Scholar";
+    const unlockAllChecked = Boolean(this.state.unlock_all_stages);
+
+    modal.innerHTML = `
+      <div class="duo-modal-card bounce-in" style="max-width: 520px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #1cb0f6, #0284c7);">
+          <h2>👤 Student Profile & Data Hub</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Student Card -->
+          <div class="profile-summary-card">
+            <div class="profile-avatar-circle">🎓</div>
+            <div class="profile-info-details">
+              <div class="profile-name-row">
+                <h3 id="profile-display-name">${this.escapeHtml(currentName)}</h3>
+                <button class="duo-btn duo-btn-sm duo-btn-ghost" id="btn-edit-username" title="Edit your name">✏️ Edit</button>
+              </div>
+              <p class="profile-sub">Class XII Computer Science (Semester III)</p>
+              <div class="profile-stats-row">
+                <span class="p-stat">🔥 ${this.state.streak} Day Streak</span>
+                <span class="p-stat">⭐ ${this.state.xp} XP</span>
+                <span class="p-stat">💎 ${this.state.gems} Gems</span>
+                <span class="p-stat">❤️ ${this.state.hearts}/${this.state.max_hearts}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Free Study Mode / Unlock All Stages -->
+          <div class="data-hub-section">
+            <h4>🔓 Exam Study Mode</h4>
+            <label class="unlock-all-checkbox-row">
+              <input type="checkbox" id="profile-unlock-all-checkbox" ${unlockAllChecked ? 'checked' : ''} />
+              <span><strong>Unlock All 15 Stages</strong> (Open all Python & E-Commerce topics for free practice)</span>
+            </label>
+          </div>
+
+          <!-- Save to Browser & GitHub Hub -->
+          <div class="data-hub-section">
+            <h4>💾 Save & Backup Progress</h4>
+            <p class="hub-desc">
+              ✅ <strong>Browser Storage:</strong> Active. Your progress automatically saves to this phone/PC browser.
+            </p>
+            <p class="hub-desc">
+              🐙 <strong>GitHub / Cloud Backup:</strong> Download your progress JSON file to commit it to GitHub or keep a copy on your phone!
+            </p>
+
+            <div class="hub-action-buttons-grid">
+              <button id="btn-download-progress" class="duo-btn duo-btn-secondary duo-btn-sm">
+                📥 Download Progress File (.json)
+              </button>
+              <button id="btn-copy-json" class="duo-btn duo-btn-ghost duo-btn-sm">
+                📋 Copy Progress to Clipboard
+              </button>
+            </div>
+          </div>
+
+          <!-- Restore / Load Progress -->
+          <div class="data-hub-section">
+            <h4>📂 Restore Progress (Phone &lt;&gt; PC)</h4>
+            <div class="hub-action-buttons-grid">
+              <label class="duo-btn duo-btn-ghost duo-btn-sm file-upload-label">
+                📁 Upload JSON File
+                <input type="file" id="file-import-progress" accept=".json" style="display: none;" />
+              </label>
+              <button id="btn-paste-json" class="duo-btn duo-btn-ghost duo-btn-sm">
+                📥 Paste JSON Text
+              </button>
+            </div>
+          </div>
+
+          <!-- Danger Zone: Reset -->
+          <div class="data-hub-section" style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px;">
+            <button id="btn-reset-progress" class="duo-btn duo-btn-sm duo-btn-ghost" style="color: var(--red); border-color: var(--red);">
+              ⚠️ Reset All Progress
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    modal.querySelector(".modal-close-btn").addEventListener("click", () => modal.remove());
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.remove();
+    });
+
+    // 1. Edit Name
+    modal.querySelector("#btn-edit-username").addEventListener("click", () => {
+      const newName = prompt("Enter your name:", this.state.username || "");
+      if (newName && newName.trim()) {
+        this.state.username = newName.trim().slice(0, 30);
+        localStorage.setItem("pyduo_username", this.state.username);
+        modal.querySelector("#profile-display-name").innerText = this.state.username;
+        this.updateStatsBar();
+        this.saveProgress();
+      }
+    });
+
+    // 2. Toggle Unlock All
+    modal.querySelector("#profile-unlock-all-checkbox").addEventListener("change", (e) => {
+      this.state.unlock_all_stages = e.target.checked;
+      localStorage.setItem("pyduo_unlock_all", e.target.checked ? "true" : "false");
+      window.soundEngine.playLevelUp();
+      this.saveProgress();
+      if (this.currentView === "journey") {
+        this.renderCurrentView();
+      }
+    });
+
+    // 3. Download Progress JSON
+    modal.querySelector("#btn-download-progress").addEventListener("click", () => {
+      window.soundEngine.playGem();
+      const filename = `pyduo_progress_${(this.state.username || 'student').toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state, null, 2));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", filename);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    });
+
+    // 4. Copy Progress JSON
+    modal.querySelector("#btn-copy-json").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(this.state, null, 2));
+        window.soundEngine.playGem();
+        alert("Progress JSON copied to clipboard! You can paste this in GitHub, Google Drive, or notes.");
+      } catch (err) {
+        prompt("Copy your progress JSON string below:", JSON.stringify(this.state));
+      }
+    });
+
+    // 5. Upload File
+    modal.querySelector("#file-import-progress").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (imported && typeof imported === "object") {
+            this.state = { ...this.state, ...imported };
+            if (this.state.username) localStorage.setItem("pyduo_username", this.state.username);
+            this.updateStatsBar();
+            this.saveProgress();
+            window.soundEngine.playLevelUp();
+            alert("Progress successfully restored!");
+            modal.remove();
+            this.renderCurrentView();
+          }
+        } catch (err) {
+          alert("Invalid progress file format!");
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // 6. Paste JSON Text
+    modal.querySelector("#btn-paste-json").addEventListener("click", () => {
+      const pasted = prompt("Paste your progress JSON string here:");
+      if (pasted) {
+        try {
+          const parsed = JSON.parse(pasted);
+          this.state = { ...this.state, ...parsed };
+          if (this.state.username) localStorage.setItem("pyduo_username", this.state.username);
+          this.updateStatsBar();
+          this.saveProgress();
+          window.soundEngine.playLevelUp();
+          alert("Progress successfully loaded!");
+          modal.remove();
+          this.renderCurrentView();
+        } catch (e) {
+          alert("Could not parse JSON. Please check the text.");
+        }
+      }
+    });
+
+    // 7. Reset Progress
+    modal.querySelector("#btn-reset-progress").addEventListener("click", () => {
+      if (confirm("Are you sure you want to reset all progress? This will reset XP, streak, and completed stages.")) {
+        localStorage.removeItem("pyduo_progress");
+        this.state.xp = 0;
+        this.state.streak = 1;
+        this.state.hearts = 5;
+        this.state.gems = 100;
+        this.state.completed_stages = [1, 11];
+        this.state.completed_lessons = [];
+        this.saveProgress();
+        this.updateStatsBar();
+        window.soundEngine.playWrong();
+        modal.remove();
+        this.renderCurrentView();
+      }
+    });
   }
 }
 

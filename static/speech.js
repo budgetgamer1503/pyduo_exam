@@ -103,6 +103,11 @@ class SpeechEngine {
     this.selectedAiVoice = voiceId;
   }
 
+  isLocalServer() {
+    const host = window.location.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host.startsWith("192.168.") || host.startsWith("10.");
+  }
+
   // Speak text using realistic Indian AI voice with animated mascot sync
   async speak(text, onStartCallback = null, onEndCallback = null) {
     this.stop(); // Stop any currently playing audio
@@ -116,16 +121,27 @@ class SpeechEngine {
 
     if (!cleanText.trim()) return;
 
+    // On GitHub Pages or static hosting: directly use browser synthesis to preserve user gesture
+    if (!this.isLocalServer()) {
+      this.speakBrowserFallback(cleanText, onStartCallback, onEndCallback);
+      return;
+    }
+
     try {
-      // 1. Try server-side Indian Neural Voice (studio-grade quality)
+      // 1. Try server-side Indian Neural Voice (studio-grade quality on local server)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: cleanText,
           voice: this.selectedAiVoice
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!res.ok) throw new Error("Backend TTS returned non-200");
 
