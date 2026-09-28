@@ -451,7 +451,7 @@ class PyDuoApp {
   }
 
   // ==========================================================================
-  // VIEW: INTERACTIVE LESSON SCREEN (DUOLINGO STYLE)
+  // VIEW: INTERACTIVE LESSON SCREEN (EXPLANATION FIRST -> PRACTICE QUIZ)
   // ==========================================================================
   startLesson(stageId, lessonId) {
     let stage = null;
@@ -470,12 +470,14 @@ class PyDuoApp {
     }
 
     this.activeLesson = lesson;
+    this.activeStage = stage;
     this.lessonQuestions = [...lesson.questions];
     this.currentQuestionIdx = 0;
     this.lessonXpEarned = 0;
     this.lessonMistakes = 0;
     this.selectedAnswer = null;
     this.isAnswerChecked = false;
+    this.lessonMode = "explain"; // FIRST explain the chapter topic!
 
     window.soundEngine.playClick();
     this.switchView("lesson");
@@ -487,6 +489,160 @@ class PyDuoApp {
       return;
     }
 
+    if (this.lessonMode === "explain") {
+      this.renderConceptClassroom(container);
+    } else {
+      this.renderQuizChallenges(container);
+    }
+  }
+
+  // PHASE 1: THE CONCEPT CLASSROOM (TEACHING THE TOPIC FIRST)
+  renderConceptClassroom(container) {
+    const lesson = this.activeLesson;
+    const stage = this.activeStage;
+
+    const classroomWrapper = document.createElement("div");
+    classroomWrapper.className = "concept-classroom-wrapper bounce-in";
+
+    classroomWrapper.innerHTML = `
+      <!-- Classroom Top Bar -->
+      <div class="concept-classroom-topbar">
+        <button id="exit-classroom-btn" class="icon-circle-btn" title="Back to Roadmap">✕</button>
+        <div class="concept-badge-row">
+          <span class="concept-tag">${stage ? stage.code : 'CORE'} • TOPIC LECTURE</span>
+        </div>
+        <div class="lesson-hearts-badge">
+          ❤️ ${this.state.hearts}
+        </div>
+      </div>
+
+      <!-- Mascot Lecture Greeting -->
+      <div class="lesson-mascot-row">
+        <div id="classroom-mascot-slot"></div>
+        <div class="mascot-speech-bubble-large">
+          <p id="classroom-mascot-text">${lesson.mascotDialogue || "Let us study this topic thoroughly first so you ace the questions!"}</p>
+        </div>
+      </div>
+
+      <!-- Indian Neural AI Voice Control Bar -->
+      <div class="ai-voice-control-bar">
+        <div class="voice-status-info">
+          <div class="voice-badge-avatar">🇮🇳</div>
+          <div class="voice-text-details">
+            <h4>Indian AI Voice Tutor</h4>
+            <p>Listen to PyMimi teach this topic with natural Indian accent</p>
+          </div>
+        </div>
+        <div class="voice-action-group">
+          <select id="classroom-voice-select" class="ai-voice-select">
+            <option value="en-IN-NeerjaNeural" ${window.speechEngine.selectedAiVoice === 'en-IN-NeerjaNeural' ? 'selected' : ''}>🇮🇳 Neerja (Female AI - Teacher)</option>
+            <option value="en-IN-PrabhatNeural" ${window.speechEngine.selectedAiVoice === 'en-IN-PrabhatNeural' ? 'selected' : ''}>🇮🇳 Prabhat (Male AI - Scholar)</option>
+          </select>
+          <button id="btn-read-lecture-ai" class="ai-read-btn">
+            <span>🔊</span>
+            <span id="read-lecture-label">Listen to Lecture</span>
+          </button>
+          <button id="btn-stop-lecture-ai" class="duo-btn duo-btn-ghost duo-btn-sm" style="display: none;">⏹️</button>
+        </div>
+      </div>
+
+      <!-- Chapter Concept Story Cards -->
+      <div class="concept-cards-column">
+        <div class="concept-story-card">
+          <div class="card-title-row">
+            <div class="card-icon-pill">🧠</div>
+            <h3>${lesson.title}: Concept Breakdown</h3>
+          </div>
+          <div class="concept-text-body">
+            ${this.renderMarkdown(lesson.explanation)}
+          </div>
+        </div>
+
+        <div class="board-exam-callout">
+          <h4>⚠️ Class XII WBCHSE Board Exam Master Tip</h4>
+          <p>Read each rule carefully. In the exam, questions often test subtle differences (like <code>//</code> rounding down negatives, <code>find()</code> returning -1 vs <code>index()</code> raising ValueError, and mutability differences!).</p>
+        </div>
+
+        <!-- Big CTA to start practice quiz -->
+        <div class="start-quiz-cta-row">
+          <button id="btn-proceed-to-quiz" class="duo-btn start-quiz-btn">
+            I Understand! Start Practice Quiz (${this.lessonQuestions.length} Questions) ▶
+          </button>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(classroomWrapper);
+
+    // Initialize Classroom Mascot
+    const cMascot = new PyMimiMascot("classroom-mascot-slot");
+    cMascot.setState("thinking");
+
+    // Bind Exit
+    document.getElementById("exit-classroom-btn").addEventListener("click", () => {
+      window.speechEngine.stop();
+      this.switchView("journey");
+    });
+
+    // Voice Selection
+    const voiceSelect = document.getElementById("classroom-voice-select");
+    voiceSelect.addEventListener("change", (e) => {
+      window.speechEngine.setAiVoice(e.target.value);
+      window.soundEngine.playClick();
+    });
+
+    // Read Lecture Aloud
+    const readBtn = document.getElementById("btn-read-lecture-ai");
+    const stopBtn = document.getElementById("btn-stop-lecture-ai");
+    const readLabel = document.getElementById("read-lecture-label");
+
+    const lectureSpeechText = `${lesson.title}. ${lesson.mascotDialogue || ''}. ${lesson.explanation.replace(/[`#*]/g, ' ')}`;
+
+    readBtn.addEventListener("click", () => {
+      if (window.speechEngine.isSpeaking) {
+        window.speechEngine.stop();
+        readBtn.classList.remove("playing");
+        readLabel.innerText = "Listen to Lecture";
+        stopBtn.style.display = "none";
+        cMascot.setState("idle");
+      } else {
+        readBtn.classList.add("playing");
+        readLabel.innerText = "Speaking Lecture...";
+        stopBtn.style.display = "inline-flex";
+        cMascot.setState("happy", "Listening to Indian AI Teacher!");
+
+        window.speechEngine.speak(
+          lectureSpeechText,
+          () => {},
+          () => {
+            readBtn.classList.remove("playing");
+            readLabel.innerText = "Listen to Lecture";
+            stopBtn.style.display = "none";
+            cMascot.setState("idle");
+          }
+        );
+      }
+    });
+
+    stopBtn.addEventListener("click", () => {
+      window.speechEngine.stop();
+      readBtn.classList.remove("playing");
+      readLabel.innerText = "Listen to Lecture";
+      stopBtn.style.display = "none";
+      cMascot.setState("idle");
+    });
+
+    // Proceed to Quiz Button
+    document.getElementById("btn-proceed-to-quiz").addEventListener("click", () => {
+      window.soundEngine.playClick();
+      window.speechEngine.stop();
+      this.lessonMode = "quiz";
+      this.renderCurrentView();
+    });
+  }
+
+  // PHASE 2: INTERACTIVE PRACTICE QUIZ (CHALLENGES)
+  renderQuizChallenges(container) {
     const currentQ = this.lessonQuestions[this.currentQuestionIdx];
     const progressPercent = Math.round((this.currentQuestionIdx / this.lessonQuestions.length) * 100);
 
@@ -500,6 +656,7 @@ class PyDuoApp {
         <div class="duo-progress-container">
           <div class="duo-progress-fill" style="width: ${progressPercent}%;"></div>
         </div>
+        <button id="btn-revisit-concept" class="duo-btn duo-btn-sm duo-btn-ghost" title="Re-read topic explanation">📖 Lecture</button>
         <div class="lesson-hearts-badge">
           ❤️ ${this.state.hearts}
         </div>
@@ -511,7 +668,7 @@ class PyDuoApp {
         <div class="mascot-speech-bubble-large">
           <p id="mascot-speech-content">${this.activeLesson.mascotDialogue || "You've got this!"}</p>
           <div class="speech-controls">
-            <button id="speak-question-btn" class="speech-voice-btn" title="Read Aloud">🔊 Listen</button>
+            <button id="speak-question-btn" class="speech-voice-btn" title="Read Aloud with Indian AI Voice">🔊 Indian AI Voice</button>
             <span class="speech-indicator hidden" id="speech-indicator">Speaking...</span>
           </div>
         </div>
@@ -556,12 +713,20 @@ class PyDuoApp {
 
     // Bind Exit
     document.getElementById("exit-lesson-btn").addEventListener("click", () => {
+      window.speechEngine.stop();
       if (confirm("Are you sure you want to exit? Your lesson progress will be lost.")) {
         this.switchView("journey");
       }
     });
 
-    // Bind Read Aloud
+    // Bind Revisit Concept
+    document.getElementById("btn-revisit-concept").addEventListener("click", () => {
+      window.speechEngine.stop();
+      this.lessonMode = "explain";
+      this.renderCurrentView();
+    });
+
+    // Bind Read Aloud with Indian AI Voice
     const speakBtn = document.getElementById("speak-question-btn");
     speakBtn.addEventListener("click", () => {
       const textToSpeak = `${currentQ.voicePrompt || currentQ.prompt}`;
@@ -1597,6 +1762,54 @@ finally:
     const close = () => modal.remove();
     modal.querySelector(".modal-close-btn").addEventListener("click", close);
     modal.querySelector(".modal-close-btn-bottom").addEventListener("click", close);
+  }
+
+  openMobileConnectModal() {
+    window.soundEngine.playClick();
+    const mobileUrl = this.networkInfo?.mobile_url || `http://${this.localIp || '10.199.60.246'}:8000`;
+    const modal = document.createElement("div");
+    modal.className = "duo-modal-overlay";
+    modal.innerHTML = `
+      <div class="duo-modal-card bounce-in">
+        <div class="modal-header" style="background: linear-gradient(135deg, #1cb0f6, #0284c7);">
+          <h2>📱 Learn on Mobile Phone</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body qr-modal-body">
+          <p>Open PyDuo Exam Quest directly on your phone's browser!</p>
+          <div class="qr-preview-box">
+            <img src="/static/mobile_qr.svg" alt="Mobile QR Code" />
+          </div>
+          <div class="copy-url-row">
+            <input type="text" readonly value="${mobileUrl}" class="duo-input" id="mobile-url-input" />
+            <button class="duo-btn duo-btn-primary" id="copy-mobile-url-btn">Copy Link</button>
+          </div>
+          <div class="mobile-step-instructions">
+            <strong>🚀 3-Second Quick Setup:</strong>
+            <ol>
+              <li>Ensure your phone is connected to the same <strong>Wi-Fi</strong> or PC <strong>Hotspot</strong>.</li>
+              <li>Open your phone's camera app and point it at the QR code, or open Chrome/Safari and visit: <code>${mobileUrl}</code></li>
+              <li>For full-screen Duolingo experience: In Chrome tap <strong>⋮</strong> &gt; <strong>"Add to Home screen"</strong> (or Safari tap <strong>Share</strong> &gt; <strong>"Add to Home Screen"</strong>)!</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    modal.querySelector(".modal-close-btn").addEventListener("click", () => modal.remove());
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.remove();
+    });
+
+    const copyBtn = modal.querySelector("#copy-mobile-url-btn");
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(mobileUrl);
+      copyBtn.innerText = "Copied! ✓";
+      window.soundEngine.playGem();
+      setTimeout(() => { copyBtn.innerText = "Copy Link"; }, 2000);
+    });
   }
 
   startHeartRegenTimer() {
