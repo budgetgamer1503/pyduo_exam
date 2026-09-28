@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#58cc02">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>PyDuo Exam Quest - Class XII Computer Science (COMS)</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="manifest" href="/static/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
@@ -88,6 +92,11 @@
             <span id="stat-xp">120 XP</span>
           </div>
 
+          <button class="theme-toggle-pill" id="mobile-connect-btn" title="Open on Mobile Web via Wi-Fi">
+            <span>📱</span>
+            <span>Phone</span>
+          </button>
+
           <button class="theme-toggle-pill" id="header-theme-toggle" title="Toggle Dark/Light Mode">
             <span id="theme-toggle-icon">🌙</span>
             <span id="theme-toggle-label">Dark</span>
@@ -100,6 +109,30 @@
         <!-- Rendered by app.js -->
       </div>
     </main>
+
+    <!-- Mobile Bottom Navigation Bar (Duolingo Style on Phone) -->
+    <nav class="mobile-bottom-nav">
+      <button class="mobile-nav-item active" data-view="journey">
+        <span class="mob-icon">🗺️</span>
+        <span class="mob-lbl">Path</span>
+      </button>
+      <button class="mobile-nav-item" data-view="arena">
+        <span class="mob-icon">⚔️</span>
+        <span class="mob-lbl">Practice</span>
+      </button>
+      <button class="mobile-nav-item" data-view="playground">
+        <span class="mob-icon">💻</span>
+        <span class="mob-lbl">Sandbox</span>
+      </button>
+      <button class="mobile-nav-item" data-view="exam">
+        <span class="mob-icon">🎓</span>
+        <span class="mob-lbl">Exam</span>
+      </button>
+      <button class="mobile-nav-item" data-view="vault">
+        <span class="mob-icon">📚</span>
+        <span class="mob-lbl">Vault</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Scripts -->

@@ -1,58 +1,53 @@
 // ============================================================================
-// PyDuo Speech Engine: Human-like Text-to-Speech & Voice Recognition
+// PyDuo Speech Engine: Human-like Indian AI Voice (Neural TTS) & STT
+// Uses high-quality Neural Indian AI Voice (Neerja & Prabhat) with browser fallback
 // ============================================================================
 
 class SpeechEngine {
   constructor() {
-    this.synth = window.speechSynthesis || null;
-    this.voices = [];
-    this.selectedVoice = null;
-    this.rate = 1.0;
-    this.pitch = 1.05;
-    this.volume = 1.0;
+    this.currentAudio = null;
     this.isSpeaking = false;
     this.autoRead = true;
+    this.selectedAiVoice = "en-IN-NeerjaNeural"; // Default Indian Female AI Voice
+    this.availableAiVoices = [
+      { id: "en-IN-NeerjaNeural", name: "🇮🇳 Neerja (Indian AI Female - Teacher)", lang: "en-IN" },
+      { id: "en-IN-PrabhatNeural", name: "🇮🇳 Prabhat (Indian AI Male - Scholar)", lang: "en-IN" }
+    ];
 
-    // Speech Recognition (STT)
+    // Fallback browser synthesis
+    this.synth = window.speechSynthesis || null;
+    this.browserVoices = [];
+    this.selectedBrowserVoice = null;
+    this.rate = 0.95;
+    this.pitch = 1.0;
+
+    // Speech Recognition (Voice-to-Text STT)
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     this.recognition = SpeechRec ? new SpeechRec() : null;
     this.isListening = false;
     this.onSpeechResult = null;
     this.onListeningChange = null;
 
-    this.initVoices();
+    this.initBrowserVoices();
     this.initRecognition();
   }
 
-  initVoices() {
+  initBrowserVoices() {
     if (!this.synth) return;
 
     const load = () => {
-      this.voices = this.synth.getVoices();
-      // Look for natural human-like English voices
-      const preferred = [
-        "Google US English",
-        "Microsoft Jenny Online (Natural)",
-        "Microsoft Guy Online (Natural)",
-        "Google UK English Female",
-        "Samantha",
-        "Daniel",
-        "Karen",
-        "Moira",
-        "en-US",
-        "en-GB"
-      ];
-
-      for (const pref of preferred) {
-        const found = this.voices.find(v => v.name.includes(pref) || v.lang.startsWith(pref));
+      this.browserVoices = this.synth.getVoices();
+      // Prioritize Indian English voices
+      const indianPref = ["en-IN", "India", "Neerja", "Heera", "Prabhat", "Rishi", "Veena", "Google English (India)"];
+      for (const pref of indianPref) {
+        const found = this.browserVoices.find(v => v.lang.includes("en-IN") || v.name.includes(pref));
         if (found) {
-          this.selectedVoice = found;
+          this.selectedBrowserVoice = found;
           break;
         }
       }
-
-      if (!this.selectedVoice && this.voices.length > 0) {
-        this.selectedVoice = this.voices.find(v => v.lang.startsWith("en")) || this.voices[0];
+      if (!this.selectedBrowserVoice && this.browserVoices.length > 0) {
+        this.selectedBrowserVoice = this.browserVoices.find(v => v.lang.startsWith("en")) || this.browserVoices[0];
       }
     };
 
@@ -67,7 +62,7 @@ class SpeechEngine {
 
     this.recognition.continuous = false;
     this.recognition.interimResults = true;
-    this.recognition.lang = "en-US";
+    this.recognition.lang = "en-IN"; // Indian English accent recognition
 
     this.recognition.onstart = () => {
       this.isListening = true;
@@ -80,7 +75,7 @@ class SpeechEngine {
     };
 
     this.recognition.onerror = (event) => {
-      console.warn("Speech recognition error:", event.error);
+      console.warn("Speech recognition notice:", event.error);
       this.isListening = false;
       if (this.onListeningChange) this.onListeningChange(false);
     };
@@ -104,27 +99,73 @@ class SpeechEngine {
     };
   }
 
-  // Speak text with human-like prosody and optional callback
-  speak(text, onStartCallback = null, onEndCallback = null) {
-    if (!this.synth) return;
+  setAiVoice(voiceId) {
+    this.selectedAiVoice = voiceId;
+  }
 
-    this.stop(); // Stop any pending speech
+  // Speak text using realistic Indian AI voice with animated mascot sync
+  async speak(text, onStartCallback = null, onEndCallback = null) {
+    this.stop(); // Stop any currently playing audio
 
-    // Clean markdown symbols for natural narration
     const cleanText = text
       .replace(/`([^`]+)`/g, "$1")
       .replace(/\*\*([^*]+)\*\*/g, "$1")
       .replace(/#+\s+/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/[\n\r]+/g, ". ");
+      .replace(/[\n\r]+/g, " ");
+
+    if (!cleanText.trim()) return;
+
+    try {
+      // 1. Try server-side Indian Neural Voice (studio-grade quality)
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: cleanText,
+          voice: this.selectedAiVoice
+        })
+      });
+
+      if (!res.ok) throw new Error("Backend TTS returned non-200");
+
+      const blob = await res.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      this.currentAudio = new Audio(audioUrl);
+
+      this.currentAudio.onplay = () => {
+        this.isSpeaking = true;
+        if (window.mascot) window.mascot.setSpeaking(true);
+        if (onStartCallback) onStartCallback();
+      };
+
+      this.currentAudio.onended = () => {
+        this.isSpeaking = false;
+        if (window.mascot) window.mascot.setSpeaking(false);
+        if (onEndCallback) onEndCallback();
+      };
+
+      this.currentAudio.onerror = () => {
+        this.speakBrowserFallback(cleanText, onStartCallback, onEndCallback);
+      };
+
+      await this.currentAudio.play();
+    } catch (e) {
+      console.warn("Using browser synthesis fallback:", e);
+      this.speakBrowserFallback(cleanText, onStartCallback, onEndCallback);
+    }
+  }
+
+  // Fallback to browser SpeechSynthesis with Indian accent prioritization
+  speakBrowserFallback(cleanText, onStartCallback, onEndCallback) {
+    if (!this.synth) return;
 
     const utter = new SpeechSynthesisUtterance(cleanText);
-    if (this.selectedVoice) {
-      utter.voice = this.selectedVoice;
+    if (this.selectedBrowserVoice) {
+      utter.voice = this.selectedBrowserVoice;
     }
     utter.rate = this.rate;
     utter.pitch = this.pitch;
-    utter.volume = this.volume;
 
     utter.onstart = () => {
       this.isSpeaking = true;
@@ -148,16 +189,21 @@ class SpeechEngine {
   }
 
   stop() {
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+    }
     if (this.synth) {
       this.synth.cancel();
-      this.isSpeaking = false;
-      if (window.mascot) window.mascot.setSpeaking(false);
     }
+    this.isSpeaking = false;
+    if (window.mascot) window.mascot.setSpeaking(false);
   }
 
   startListening(callback, onListeningChange = null) {
     if (!this.recognition) {
-      alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Android Chrome.");
       return;
     }
     this.onSpeechResult = callback;
@@ -179,3 +225,4 @@ class SpeechEngine {
 
 // Global instance
 window.speechEngine = new SpeechEngine();
+

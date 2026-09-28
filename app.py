@@ -142,6 +142,61 @@ def run_code(req: CodeExecutionRequest):
         except OSError:
             pass
 
+AUDIO_CACHE_DIR = BASE_DIR / "audio_cache"
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "en-IN-NeerjaNeural"
+
+def get_local_ip() -> str:
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+@app.get("/api/network-info")
+def network_info():
+    ip = get_local_ip()
+    return {
+        "local_ip": ip,
+        "port": 8000,
+        "mobile_url": f"http://{ip}:8000"
+    }
+
+@app.post("/api/tts")
+async def tts_endpoint(req: TTSRequest):
+    import hashlib
+    import re
+    import edge_tts
+
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty text")
+
+    clean = re.sub(r'[`*_#]', '', text)
+    clean = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', clean)
+    clean = clean.replace('\n', ' ')
+
+    voice = req.voice or "en-IN-NeerjaNeural"
+    AUDIO_CACHE_DIR.mkdir(exist_ok=True)
+
+    cache_key = hashlib.md5(f"{voice}_{clean}".encode('utf-8')).hexdigest()
+    audio_path = AUDIO_CACHE_DIR / f"{cache_key}.mp3"
+
+    if not audio_path.exists():
+        try:
+            communicate = edge_tts.Communicate(clean, voice)
+            await communicate.save(str(audio_path))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}")
+
+    return FileResponse(audio_path, media_type="audio/mpeg")
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "app": "PyDuo Exam Quest Class XII COMS"}
@@ -155,10 +210,12 @@ def index():
 
 if __name__ == "__main__":
     import uvicorn
-    # Configure stdout to utf-8 if possible
+    local_ip = get_local_ip()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    print("=" * 60)
-    print(" >> Launching PyDuo Exam Quest (Class XII COMS) on http://localhost:8000")
-    print("=" * 60)
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+    print("=" * 65)
+    print(" >> PyDuo Exam Quest (Class XII COMS) Active!")
+    print(f" >> Desktop URL: http://localhost:8000")
+    print(f" >> Mobile URL:  http://{local_ip}:8000")
+    print("=" * 65)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
