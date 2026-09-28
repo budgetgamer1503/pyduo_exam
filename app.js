@@ -6,13 +6,15 @@
 class PyDuoApp {
   constructor() {
     this.state = {
+      username: localStorage.getItem("pyduo_username") || "",
+      unlock_all_stages: localStorage.getItem("pyduo_unlock_all") === "true",
       xp: 120,
       streak: 3,
       hearts: 5,
       max_hearts: 5,
       gems: 250,
       current_stage: 1,
-      completed_stages: [1],
+      completed_stages: [1, 11], // Python Stage 1 & E-Commerce Stage 11 accessible
       stage_stars: { "1": 3 },
       completed_lessons: ["1-1", "1-2"],
       voice_mode: true,
@@ -42,6 +44,11 @@ class PyDuoApp {
     this.init();
   }
 
+  isLocalServer() {
+    const host = window.location.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host.startsWith("192.168.") || host.startsWith("10.");
+  }
+
   async init() {
     this.initTheme();
     await this.fetchServerProgress();
@@ -50,9 +57,16 @@ class PyDuoApp {
     this.updateStatsBar();
     this.renderCurrentView();
 
+    // Ask for Student Name if first time visiting
+    if (!this.state.username) {
+      setTimeout(() => {
+        this.openWelcomeLoginModal();
+      }, 500);
+    }
+
     // Initialize global mascot
     window.mascot = new PyMimiMascot("global-mascot-container");
-    window.mascot.setState("idle", "Ready to ace Class XII Computer Science? Let's go!");
+    window.mascot.setState("idle", `Ready to ace Class XII Computer Science${this.state.username ? ', ' + this.state.username : ''}? Let's go!`);
 
     // Start auto-heart refill timer check
     this.startHeartRegenTimer();
@@ -78,36 +92,57 @@ class PyDuoApp {
       } catch (err) {}
     }
 
-    // 2. Sync with backend API if available
-    try {
-      const res = await fetch("/api/progress");
-      if (res.ok) {
-        const data = await res.json();
-        this.state = { ...this.state, ...data };
-        localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+    const savedName = localStorage.getItem("pyduo_username");
+    if (savedName) this.state.username = savedName;
+
+    const savedUnlock = localStorage.getItem("pyduo_unlock_all");
+    if (savedUnlock !== null) this.state.unlock_all_stages = (savedUnlock === "true");
+
+    // 2. Sync with backend API only if on local python server
+    if (this.isLocalServer()) {
+      try {
+        const res = await fetch("/api/progress");
+        if (res.ok) {
+          const data = await res.json();
+          this.state = { ...this.state, ...data };
+          localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+        }
+      } catch (e) {
+        // Backend offline
       }
-    } catch (e) {
-      // Running on GitHub Pages or offline - perfectly fine!
     }
   }
 
   async saveProgress() {
-    // Always persist to localStorage for GitHub Pages
-    localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
-
-    // Also persist to backend if running locally
+    // Always persist to localStorage for phone browser & GitHub Pages
     try {
-      await fetch("/api/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.state)
-      });
+      localStorage.setItem("pyduo_progress", JSON.stringify(this.state));
+      if (this.state.username) {
+        localStorage.setItem("pyduo_username", this.state.username);
+        const userKey = `pyduo_user_${this.state.username.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        localStorage.setItem(userKey, JSON.stringify(this.state));
+      }
+      localStorage.setItem("pyduo_unlock_all", this.state.unlock_all_stages ? "true" : "false");
     } catch (e) {
-      // Backend not running (GitHub Pages mode)
+      console.warn("Storage warning:", e);
+    }
+
+    // Also persist to backend if running on local server
+    if (this.isLocalServer()) {
+      try {
+        await fetch("/api/progress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.state)
+        });
+      } catch (e) {
+        // Backend offline
+      }
     }
   }
 
   async fetchNetworkInfo() {
+    if (!this.isLocalServer()) return;
     try {
       const res = await fetch("/api/network-info");
       if (res.ok) {
@@ -194,6 +229,16 @@ class PyDuoApp {
     if (headerThemeBtn) {
       headerThemeBtn.addEventListener("click", () => this.toggleTheme());
     }
+    // Profile Data Hub triggers
+    const headerProfileBtn = document.getElementById("header-profile-btn");
+    if (headerProfileBtn) {
+      headerProfileBtn.addEventListener("click", () => this.openProfileDataHubModal());
+    }
+
+    const sidebarProfileBtn = document.getElementById("sidebar-profile-btn");
+    if (sidebarProfileBtn) {
+      sidebarProfileBtn.addEventListener("click", () => this.openProfileDataHubModal());
+    }
   }
 
   initTheme() {
@@ -233,11 +278,17 @@ class PyDuoApp {
     const gemEl = document.getElementById("stat-gems");
     const heartEl = document.getElementById("stat-hearts");
     const xpEl = document.getElementById("stat-xp");
+    const headerNameEl = document.getElementById("header-user-name");
+    const sidebarNameEl = document.getElementById("sidebar-user-name");
+
+    const displayName = this.state.username || "Login";
 
     if (streakEl) streakEl.innerText = this.state.streak;
     if (gemEl) gemEl.innerText = this.state.gems;
     if (heartEl) heartEl.innerText = `${this.state.hearts}/${this.state.max_hearts}`;
     if (xpEl) xpEl.innerText = `${this.state.xp} XP`;
+    if (headerNameEl) headerNameEl.innerText = displayName;
+    if (sidebarNameEl) sidebarNameEl.innerText = `${displayName}'s Profile`;
   }
 
   switchView(viewName) {
@@ -300,6 +351,11 @@ class PyDuoApp {
           <div class="banner-badge">CLASS XII COMPUTER SCIENCE • SEMESTER III</div>
           <h2>Interactive Exam Quest Roadmap</h2>
           <p>Master all 35 Marks: Python Programming (25M) & E-Commerce (10M) with PyMimi!</p>
+          <div class="roadmap-quick-actions">
+            <button id="toggle-unlock-stages-btn" class="quick-unlock-pill ${this.state.unlock_all_stages ? 'active' : ''}">
+              ${this.state.unlock_all_stages ? '🔓 Free Exam Practice (All 15 Topics Open)' : '🔒 Unlock All 15 Topics for Revision'}
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -322,7 +378,13 @@ class PyDuoApp {
       unit.stages.forEach((stage, idx) => {
         const isCompleted = this.state.completed_stages.includes(stage.id);
         const isCurrent = this.state.current_stage === stage.id;
-        const isLocked = !isCompleted && !isCurrent && stage.id > (Math.max(...this.state.completed_stages, 0) + 1);
+        // Stage 1 is open. Stage 11 (Unit 2 start) is open. Unlock all toggle unlocks everything.
+        const isLocked = !this.state.unlock_all_stages &&
+                         !isCompleted &&
+                         !isCurrent &&
+                         stage.id !== 1 &&
+                         stage.id !== 11 &&
+                         stage.id > (Math.max(...this.state.completed_stages, 0) + 1);
         const stars = this.state.stage_stars[stage.id.toString()] || 0;
 
         // Alternating zigzag pattern (damped on mobile viewports to prevent overflow)
@@ -378,13 +440,24 @@ class PyDuoApp {
       node.addEventListener("click", () => {
         if (node.classList.contains("locked")) {
           window.soundEngine.playWrong();
-          alert("Complete earlier topics first to unlock this quest!");
+          alert("Topic locked! Complete earlier topics or tap 'Unlock All 15 Topics' at the top banner.");
           return;
         }
         const stageId = parseInt(node.dataset.stageId);
         this.openStageIntroModal(stageId);
       });
     });
+
+    const unlockBtn = wrapper.querySelector("#toggle-unlock-stages-btn");
+    if (unlockBtn) {
+      unlockBtn.addEventListener("click", () => {
+        this.state.unlock_all_stages = !this.state.unlock_all_stages;
+        localStorage.setItem("pyduo_unlock_all", this.state.unlock_all_stages ? "true" : "false");
+        window.soundEngine.playLevelUp();
+        this.saveProgress();
+        this.renderCurrentView();
+      });
+    }
 
     const examBtn = wrapper.querySelector("#trigger-board-exam");
     if (examBtn) {
