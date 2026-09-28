@@ -24,7 +24,9 @@ class PyDuoApp {
     };
 
     this.currentView = "journey"; // 'journey' | 'lesson' | 'playground' | 'exam' | 'vault' | 'arena'
+    this.lessonMode = "explain"; // 'explain' (teaching first!) | 'quiz' (interactive questions)
     this.activeLesson = null;
+    this.activeStage = null;
     this.lessonQuestions = [];
     this.currentQuestionIdx = 0;
     this.lessonXpEarned = 0;
@@ -34,6 +36,8 @@ class PyDuoApp {
     this.examTimer = null;
     this.examSecondsLeft = 45 * 60;
     this.examAnswers = {};
+    this.localIp = "10.199.60.246";
+    this.networkInfo = null;
 
     this.init();
   }
@@ -41,6 +45,7 @@ class PyDuoApp {
   async init() {
     this.initTheme();
     await this.fetchServerProgress();
+    await this.fetchNetworkInfo();
     this.bindEvents();
     this.updateStatsBar();
     this.renderCurrentView();
