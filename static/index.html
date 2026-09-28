@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyDuo Exam Quest - Class XII Computer Science (COMS)</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar (Duolingo Style) -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-emoji">🐍</span>
+        <div class="logo-text">
+          <span class="logo-main">PyDuo</span>
+          <span class="logo-sub">Exam Quest</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="journey">
+          <span class="nav-icon">🗺️</span>
+          <span class="nav-label">Roadmap</span>
+        </button>
+        <button class="nav-item" data-view="arena">
+          <span class="nav-icon">⚔️</span>
+          <span class="nav-label">Practice Arena</span>
+        </button>
+        <button class="nav-item" data-view="playground">
+          <span class="nav-icon">💻</span>
+          <span class="nav-label">Code Sandbox</span>
+        </button>
+        <button class="nav-item" data-view="exam">
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Board Exam (35M)</span>
+        </button>
+        <button class="nav-item" data-view="vault">
+          <span class="nav-icon">📚</span>
+          <span class="nav-label">Revision Vault</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar PyMimi Mascot Companion -->
+      <div class="sidebar-mascot-box">
+        <div id="global-mascot-container"></div>
+        <div class="mascot-companion-label">PyMimi AI Tutor</div>
+      </div>
+
+      <!-- Quick Toggles -->
+      <div class="sidebar-settings">
+        <button id="toggle-voice" class="duo-btn duo-btn-sm duo-btn-ghost active-btn" title="Toggle Voice-to-Text / Speech">🎙️ Voice: ON</button>
+        <button id="toggle-sound" class="icon-circle-btn" title="Toggle Sound">🔊</button>
+        <button id="toggle-theme" class="icon-circle-btn" title="Toggle Dark/Light Mode">🌙</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Stats Header Bar -->
+      <header class="top-header">
+        <div class="top-header-left">
+          <span class="course-pill">Class XII COMS • Semester III</span>
+        </div>
+
+        <div class="top-header-stats">
+          <div class="stat-pill streak-pill" title="Daily Streak">
+            <span class="stat-icon-flame">🔥</span>
+            <span id="stat-streak">3</span>
+          </div>
+
+          <div class="stat-pill gem-pill" title="Gems">
+            <span class="stat-icon-gem">💎</span>
+            <span id="stat-gems">250</span>
+          </div>
+
+          <button class="stat-pill heart-pill clickable" id="heart-counter-btn" title="Hearts / Energy (Click to refill)">
+            <span class="stat-icon-heart">❤️</span>
+            <span id="stat-hearts">5/5</span>
+          </button>
+
+          <div class="stat-pill xp-pill" title="Total XP">
+            <span class="stat-icon-star">⭐</span>
+            <span id="stat-xp">120 XP</span>
+          </div>
+
+          <button class="theme-toggle-pill" id="header-theme-toggle" title="Toggle Dark/Light Mode">
+            <span id="theme-toggle-icon">🌙</span>
+            <span id="theme-toggle-label">Dark</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic View Screen Container -->
+      <div id="main-view-container" class="view-viewport">
+        <!-- Rendered by app.js -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/sound.js"></script>
+  <script src="/static/speech.js"></script>
+  <script src="/static/mascot.js"></script>
+  <script src="/static/curriculum_data.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
