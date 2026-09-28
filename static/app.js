@@ -82,10 +82,22 @@ class PyDuoApp {
     }
   }
 
+  async fetchNetworkInfo() {
+    try {
+      const res = await fetch("/api/network-info");
+      if (res.ok) {
+        this.networkInfo = await res.json();
+        this.localIp = this.networkInfo.local_ip;
+      }
+    } catch (e) {
+      console.warn("Could not fetch network info:", e);
+    }
+  }
+
   bindEvents() {
-    // Navigation items
+    // Navigation items (Desktop Sidebar)
     document.querySelectorAll(".nav-item").forEach(item => {
-      item.addEventListener("click", (e) => {
+      item.addEventListener("click", () => {
         const view = item.dataset.view;
         if (view) {
           window.soundEngine.playClick();
@@ -93,6 +105,25 @@ class PyDuoApp {
         }
       });
     });
+
+    // Navigation items (Mobile Bottom Bar)
+    document.querySelectorAll(".mobile-nav-item").forEach(item => {
+      item.addEventListener("click", () => {
+        const view = item.dataset.view;
+        if (view) {
+          window.soundEngine.playClick();
+          this.switchView(view);
+        }
+      });
+    });
+
+    // Mobile Phone Connect Button
+    const mobileBtn = document.getElementById("mobile-connect-btn");
+    if (mobileBtn) {
+      mobileBtn.addEventListener("click", () => {
+        this.openMobileConnectModal();
+      });
+    }
 
     // Sound toggle
     const soundBtn = document.getElementById("toggle-sound");
@@ -187,6 +218,9 @@ class PyDuoApp {
   switchView(viewName) {
     this.currentView = viewName;
     document.querySelectorAll(".nav-item").forEach(item => {
+      item.classList.toggle("active", item.dataset.view === viewName);
+    });
+    document.querySelectorAll(".mobile-nav-item").forEach(item => {
       item.classList.toggle("active", item.dataset.view === viewName);
     });
 
